@@ -1,0 +1,31 @@
+# ── 핵심 (버전은 실제 환경에 맞춰 확정할 것) ──
+# 확정 방법: pip freeze > requirements.lock.txt
+
+torch>=2.0
+transformers>=4.40
+tokenizers>=0.19
+datasets>=2.18
+
+# ── 학습 · 평가 ──
+scikit-learn>=1.4
+numpy>=1.26
+pandas>=2.2
+optuna>=3.6
+tqdm>=4.66
+
+# ── 데이터베이스 ──
+PyMySQL>=1.1
+SQLAlchemy>=2.0
+
+# ── 서빙 ──
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
+
+# ── 유틸 ──
+python-dotenv>=1.0
+PyYAML>=6.0
+
+# ── 시각화 (실험 분석용) ──
+matplotlib>=3.8
+seaborn>=0.13

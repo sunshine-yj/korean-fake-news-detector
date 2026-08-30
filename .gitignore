@@ -1,0 +1,59 @@
+# ── Python ──
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+
+# ── 시크릿 ──
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+credentials.json
+secrets.yaml
+
+# ── 모델 가중치 (Releases 또는 HF Hub로 배포) ──
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.ckpt
+*.onnx
+checkpoints/
+runs/
+wandb/
+mlruns/
+
+# ── 데이터 (기사 원문 비공개) ──
+data/raw/
+data/processed/
+data/interim/
+*.csv
+*.jsonl
+!data/samples/*
+!data/stats/*
+
+# ── 로그 · 실험 산출물 ──
+*.log
+logs/
+*.db
+*.sqlite3
+optuna_study.db
+
+# ── Node ──
+node_modules/
+dist/
+build/
+.next/
+*.tsbuildinfo
+
+# ── OS / IDE ──
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
