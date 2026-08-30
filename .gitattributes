@@ -1,0 +1,47 @@
+# 기본: 텍스트 파일 자동 판별, 저장소에는 LF로 통일
+* text=auto eol=lf
+
+# ── 셸 스크립트는 반드시 LF ──
+*.sh text eol=lf
+
+# ── Windows 전용 스크립트는 CRLF ──
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# ── 소스 코드 ──
+*.py    text diff=python
+*.js    text
+*.jsx   text
+*.ts    text
+*.tsx   text
+*.css   text
+*.html  text diff=html
+*.json  text
+*.yaml  text
+*.yml   text
+*.sql   text
+*.md    text diff=markdown
+
+# ── 바이너리 (diff 시도 금지) ──
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.pdf   binary
+*.pptx  binary
+*.docx  binary
+*.xlsx  binary
+*.pt    binary
+*.pth   binary
+*.bin   binary
+*.safetensors binary
+*.ckpt  binary
+
+# ── GitHub 언어 통계에서 제외 ──
+docs/**            linguist-documentation
+data/samples/**    linguist-vendored
+pipeline/workflows/*.json linguist-generated
+
+# ── 대용량/생성물은 diff 축약 ──
+*.ipynb  linguist-detectable=false
