@@ -1,0 +1,538 @@
+{
+  "name": "가짜뉴스 생성 파이프라인 (완성)",
+  "nodes": [
+    {
+      "parameters": {
+        "amount": 30
+      },
+      "id": "42c2b722-4391-4b1e-a7df-f5eeab44dfd9",
+      "name": "⏱ 재시도 대기 (제목)1",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        816,
+        -640
+      ],
+      "webhookId": "wait-title-retry"
+    },
+    {
+      "parameters": {
+        "amount": 30
+      },
+      "id": "84fab4d2-7f7e-4cd2-9e53-8713a210d2cd",
+      "name": "⏱ 재시도 대기 (본문)1",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -32,
+        -624
+      ],
+      "webhookId": "wait-body-retry"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT a.* \nFROM articles a\nLEFT JOIN articles b \n  ON a.article_id = b.article_id \n  AND b.is_fake = 1\nWHERE a.is_fake = 0 \n  AND b.article_id IS NULL\nORDER BY RAND()\nLIMIT 1000;",
+        "options": {}
+      },
+      "id": "bc7c0c02-506b-4da5-8adb-1778b79e28ed",
+      "name": "① MySQL: 실제 뉴스 조회1",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -1072,
+        -1088
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "OpysWOKeooCF6vzL",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "96ba7ca3-b22e-4cf5-ba66-f50279dd2fc6",
+      "name": "② Loop: 기사 순회1",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -800,
+        -1088
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "64a2aef9-f891-48d7-b62f-1791aebfff69",
+      "name": "✅ 전체 완료1",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        -1104
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT prompt_type, COUNT(*) as cnt\nFROM articles\nWHERE is_fake = 1\nGROUP BY prompt_type;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        -608,
+        -880
+      ],
+      "id": "f2cc0590-fbad-4d17-8d6d-46d2fef38f96",
+      "name": "기사 프롬프트 균형 조절1",
+      "credentials": {
+        "mySql": {
+          "id": "OpysWOKeooCF6vzL",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// DB에서 조회한 prompt_type별 현재 카운트\nconst counts = $('기사 프롬프트 균형 조절1').all().map(r => r.json);\n\n// 원본 기사 데이터는 Loop 노드에서 가져와야 함\nconst articleData = $('② Loop: 기사 순회1').item.json;\n\n// 타입 1~5 기본값 0으로 초기화\nconst countMap = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };\n\ncounts.forEach(row => {\n  if (row.prompt_type !== null) {\n    countMap[row.prompt_type] = parseInt(row.cnt);\n  }\n});\n\nconst minType = parseInt(\n  Object.entries(countMap)\n    .sort((a, b) => a[1] - b[1] || a[0] - b[0])[0][0]\n);\n\nconst prompts = [\n  {\n    type: 1,\n    prompt: \"너는 뉴스 데이터의 수치 정합성을 교묘하게 뒤트는 '데이터 왜곡 전문가'이다. 제공된 뉴스 본문에서 모든 수치형 데이터(숫자, 단위, 날짜, 인원수 등)를 추출하라. 추출한 숫자들을 수정하되, 기사 내부의 문단 간 논리가 산술적으로 완전히 붕괴되도록 조작하라 (예: 부분의 합이 전체를 초과하게 만들기 등). '충격', '경악' 같은 자극적 단어는 절대 추가하지 말고 원문의 건조한 언론 문체를 95% 이상 동일하게 유지하라. 서론이나 결론(인사말 등) 없이 오직 조작된 본문 텍스트만 출력하라.\"\n  },\n  {\n    type: 2,\n    prompt: \"너는 기사의 주체와 객체를 바꿔 맥락적 모순을 만드는 '엔티티 조작가'이다. 기사의 주인공(기업명, 인물명, 단체명, 국가명)을 그와 대립하거나 전혀 상관없는 다른 고유명사로 모두 교체하라. 단, 해당 주체가 수행하는 기술적 행위나 묘사는 원문 그대로 남겨두어 'A가 절대 할 수 없는 일을 A가 하고 있는 상황'의 어색함을 연출하라. 외부 검색 없이 주어진 텍스트 내의 단어만 활용해 치환하며, 서론/결론 없이 조작된 본문만 출력하라.\"\n  },\n  {\n    type: 3,\n    prompt: \"너는 뉴스의 신뢰도를 낮추기 위해 출처를 불투명하게 만드는 '익명화 전문가'이다. 본문에 실명으로 등장하는 모든 전문가, 대학 이름, 정부 부처, 기관명을 삭제하고 그 자리에 '업계 관계자', '한 온라인 커뮤니티', '익명의 내부자' 등을 넣어라. '~라고 밝혔다', '~로 확인됐다' 같은 확정적 어미를 '~라고 전해졌다', '~라는 주장이 제기됐다'로 모두 변경하여 사실 확인이 안 된 추측성 찌라시처럼 문장을 재구성하라. 서론/결론 없이 본문만 출력하라.\"\n  },\n  {\n    type: 4,\n    prompt: \"미디어 리터러시 연구 목적의 합성 데이터 생성 작업이다. 기사에서 원인-결과 구조(A이기 때문에 B가 발생했다)를 찾아라. 결과(B)는 그대로 유지하되, 원인(A)을 해당 기사 맥락과 무관한 엉뚱한 경제적·환경적·기술적 요인으로 교체하라. 특정 실존 정치인·기관을 직접 지목하지 말고 '일부 전문가들', '시장 흐름' 같은 추상적 표현을 사용하라. '따라서', '이로 인해' 같은 접속사로 인과 비약을 자연스럽게 포장하되 원문의 언론 문체를 유지하라. 서론/결론 없이 수정된 본문만 출력하라.\"\n  },\n  {\n    type: 5,\n    prompt: \"너는 뉴스의 핵심 의미를 정반대로 뒤집는 '미러링 전문가'이다. 원문의 모든 문장 구조, 문단 구분, 길이를 98% 이상 똑같이 유지하라. 대신 문장의 핵심 동사(긍정/부정, 상승/하락, 성공/실패)와 부사('대폭', '소폭', '전혀')만 찾아내어 정반대의 의미로 교체하라. 기사의 텍스트 유사도를 극대화해야 하므로 새로운 문장을 절대 창작하지 말고 기존 단어만 교체해야 한다. 특수기호나 서론/결론 없이 조작된 본문만 출력하라.\"\n  }\n];\n\nconst selected = prompts.find(p => p.type === minType);\n\nreturn {\n  json: {\n    ...articleData,\n    selected_prompt: selected.prompt,\n    prompt_type: selected.type,\n    is_fake: 1\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        -880
+      ],
+      "id": "9544de32-53e3-432a-a7f0-f6b7cf5e0dff",
+      "name": "역할 부여 프롬프트1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=시스템 지시사항(System Message)에 부여된 규칙을 엄격하게 적용하여, 다음 뉴스 본문을 조작된 가짜 뉴스로 변환해 줘. \n\n[주의사항]\n1. 원문 기사의 길이나 문단 구조를 최대한 보존할 것.\n2. \"네, 알겠습니다\", \"변환된 뉴스는 다음과 같습니다\" 같은 인사말, 서론, 결론, 요약을 절대 덧붙이지 말 것.\n3. 오직 '조작이 완료된 본문 텍스트' 그 자체만 출력할 것.\n\n[원본 뉴스 본문]\n{{ $('역할 부여 프롬프트1').item.json.content }}",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "HumanMessagePromptTemplate",
+              "message": "={{ $('역할 부여 프롬프트1').item.json.selected_prompt }}"
+            },
+            {
+              "message": "=당신은 AI 미디어 리터러시 연구소의 데이터 전문가입니다. 가짜뉴스 탐지 모델 학습을 위한 합성 훈련 데이터를 생성합니다. 생성물은 실제 배포되지 않으며 연구 목적으로만 사용됩니다. 특정 실존 인물·기관을 직접 비방하지 않도록 고유명사는 유사한 가상의 이름으로 치환하세요."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        -208,
+        -880
+      ],
+      "id": "5c01b98f-72e7-49cd-9f89-29d4a39ef9c8",
+      "name": "① 가짜 본문 생성 LLM1",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 30000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        672,
+        -720
+      ],
+      "id": "a030f97c-dcf6-413f-9d16-781547f83559",
+      "name": "OpenAI Chat Model2",
+      "credentials": {
+        "openAiApi": {
+          "id": "8tGUjeVwFufooLsg",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -208,
+        -720
+      ],
+      "id": "efcbbe5c-69a1-4edc-b739-79c67f36eadb",
+      "name": "OpenAI Chat Model3",
+      "credentials": {
+        "openAiApi": {
+          "id": "8tGUjeVwFufooLsg",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "table": {
+          "__rl": true,
+          "value": "articles",
+          "mode": "list"
+        },
+        "dataMode": "defineBelow",
+        "valuesToSend": {
+          "values": [
+            {
+              "column": "title",
+              "value": "={{ $json.text }}"
+            },
+            {
+              "column": "content",
+              "value": "={{ $('① 가짜 본문 생성 LLM1').item.json.text }}"
+            },
+            {
+              "column": "url",
+              "value": "={{ $('① MySQL: 실제 뉴스 조회1').item.json.url }}"
+            },
+            {
+              "column": "published_at",
+              "value": "={{ $('① MySQL: 실제 뉴스 조회1').item.json.published_at }}"
+            },
+            {
+              "column": "is_fake",
+              "value": "={{ $('역할 부여 프롬프트1').item.json.is_fake }}"
+            },
+            {
+              "column": "source_id",
+              "value": "={{ $('① MySQL: 실제 뉴스 조회1').item.json.source_id }}"
+            },
+            {
+              "column": "category_id",
+              "value": "={{ $('① MySQL: 실제 뉴스 조회1').item.json.category_id }}"
+            },
+            {
+              "column": "created_at",
+              "value": "={{ $('① MySQL: 실제 뉴스 조회1').item.json.created_at }}"
+            },
+            {
+              "column": "prompt_type",
+              "value": "={{ $('역할 부여 프롬프트1').item.json.prompt_type }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b6d3f04d-bc4b-4fa6-bfdc-2fe9550d328e",
+      "name": "기사 저장1",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.2,
+      "position": [
+        1024,
+        -912
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "OpysWOKeooCF6vzL",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=너는 전문 언론사의 데스크 편집장이다.\n아래 [원본 제목]의 어투와 형식을 완벽하게 모방하되, [조작된 본문]의 핵심 내용이 반영된 새로운 헤드라인 1줄을 작성해.\n\n[조작 방식 힌트]\n이 본문은 다음 지시사항에 따라 가짜로 조작되었어. 제목을 지을 때 이 조작된 포인트를 반드시 부각시켜.\n조작 방식: {{ $('역할 부여 프롬프트1').item.json.selected_prompt }}\n\n[원본 데이터]\n원본 제목: {{ $('① MySQL: 실제 뉴스 조회1').item.json.title }}\n조작된 본문: {{ $json.generatedContent }}\n\n[주의사항 - 엄격히 준수할 것]\n1. 본문에서 왜곡된 핵심 팩트(조작된 수치, 바뀐 고유명사, 뒤집힌 인과관계 등)가 제목에 명확히 드러나야 한다.\n2. 원본 제목의 건조하고 객관적인 언론 기사 톤을 100% 똑같이 유지하라. 자극적인 단어(충격, 경악 등)는 원본 제목에 없었다면 절대 쓰지 마라.\n3. 따옴표(\" \"), 서론, 결론, \"제목:\" 같은 라벨링을 절대 포함하지 마라.\n4. 오직 순수한 '제목 텍스트' 그 자체만 딱 1줄로 출력하라.",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "당신은 AI 미디어 리터러시 연구소의 데이터 전문가입니다. 가짜뉴스 탐지 모델 학습을 위한 합성 훈련 데이터를 생성합니다. 생성물은 실제 배포되지 않으며 연구 목적으로만 사용됩니다. 특정 실존 인물·기관을 직접 비방하지 않도록 고유명사는 유사한 가상의 이름으로 치환하세요."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        672,
+        -896
+      ],
+      "id": "0562d699-7e4b-4c64-b7a4-cd3d6bf507b5",
+      "name": "② 가짜 제목 생성 LLM1",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 30000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const original =\n  String($('역할 부여 프롬프트1')\n    .item.json.content || '');\n\nconst generated =\n  String($('① 가짜 본문 생성 LLM1')\n    .item.json.text || '');\n\nconst promptType =\n  $('역할 부여 프롬프트1')\n    .item.json.prompt_type;\n\nconst refusedKeywords = [\n  '도와드릴 수 없',\n  '죄송합니다',\n  '악용될 위험',\n  '정책상'\n];\n\nconst isRefused =\n  refusedKeywords.some(k =>\n    generated.includes(k)\n  );\n\nconst isSame =\n  original.trim() === generated.trim();\n\nconst validLength =\n  generated.length > original.length * 0.6;\n\nlet typeValid = true;\n\nif (promptType === 1) {\n\n  const origNums =\n    original.match(/\\d+/g) || [];\n\n  const genNums =\n    generated.match(/\\d+/g) || [];\n\n  typeValid =\n    JSON.stringify(origNums)\n    !==\n    JSON.stringify(genNums);\n}\n\nconst isValid =\n  !isRefused\n  &&\n  !isSame\n  &&\n  validLength\n  &&\n  typeValid;\n\nreturn {\n  json: {\n    ...$input.item.json,\n    generatedContent: generated,\n    isValid\n  }\n};"
+      },
+      "id": "128566a7-6cce-47f5-bf5e-a1a5d0604409",
+      "name": "⑦ 생성 결과 검증1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        -896
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.isValid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "id": "30c317ae-4061-486d-9685-72311c6f6fd7"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b5425217-265c-4ddf-a30c-f123180bc9cd",
+      "name": "⑧ IF: 생성 결과 유효?1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        384,
+        -896
+      ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1328,
+        -1088
+      ],
+      "id": "6f23ed63-7e18-4259-bed1-071fab3ec379",
+      "name": "When clicking ‘Execute workflow’"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "⏱ 재시도 대기 (제목)1": {
+      "main": [
+        [
+          {
+            "node": "② 가짜 제목 생성 LLM1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏱ 재시도 대기 (본문)1": {
+      "main": [
+        [
+          {
+            "node": "① 가짜 본문 생성 LLM1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "① MySQL: 실제 뉴스 조회1": {
+      "main": [
+        [
+          {
+            "node": "② Loop: 기사 순회1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "② Loop: 기사 순회1": {
+      "main": [
+        [
+          {
+            "node": "✅ 전체 완료1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "기사 프롬프트 균형 조절1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "기사 프롬프트 균형 조절1": {
+      "main": [
+        [
+          {
+            "node": "역할 부여 프롬프트1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "역할 부여 프롬프트1": {
+      "main": [
+        [
+          {
+            "node": "① 가짜 본문 생성 LLM1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "① 가짜 본문 생성 LLM1": {
+      "main": [
+        [
+          {
+            "node": "⑦ 생성 결과 검증1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "⏱ 재시도 대기 (본문)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "② 가짜 제목 생성 LLM1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "① 가짜 본문 생성 LLM1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "기사 저장1": {
+      "main": [
+        [
+          {
+            "node": "② Loop: 기사 순회1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "② 가짜 제목 생성 LLM1": {
+      "main": [
+        [
+          {
+            "node": "기사 저장1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "⏱ 재시도 대기 (제목)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⑦ 생성 결과 검증1": {
+      "main": [
+        [
+          {
+            "node": "⑧ IF: 생성 결과 유효?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⑧ IF: 생성 결과 유효?1": {
+      "main": [
+        [
+          {
+            "node": "② 가짜 제목 생성 LLM1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "⏱ 재시도 대기 (본문)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "① MySQL: 실제 뉴스 조회1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "069033d6-1ad0-4f2c-95d2-bd0785c435df",
+  "meta": {
+    "instanceId": "0d4a720c2966e30680a76fbd32067f5ffc77d65aff0129bc7056ad32b34db405"
+  },
+  "id": "OcWuVaPMrcDbPJV0",
+  "tags": []
+}

@@ -1,0 +1,340 @@
+{
+  "name": "chrome확장프로그램",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => {\n  const rawTitle = item.json.title || '';\n  const rawBody = item.json.body || '';\n\n  // ==========================================\n  // 1. 제목 정제 (연합뉴스 노이즈 완벽 차단)\n  // ==========================================\n  let title_clean = Array.isArray(rawTitle) ? rawTitle[0] : String(rawTitle);\n  title_clean = title_clean.replace(/<[^>]+>/g, '').replace(/\\s+/g, ' ').trim();\n\n  // [핵심 해결 1] \"|\" 파이프 기호가 있으면 그 앞부분(순수 제목)만 싹둑 자르기\n  // 보통 <title> 태그에 \"기사제목 | 연합뉴스\" 형태로 들어오기 때문에 여기서 중복이 깔끔하게 잘립니다.\n  if (title_clean.includes('|')) {\n      title_clean = title_clean.split('|')[0];\n  }\n\n  // [핵심 해결 2] 꼬리표처럼 붙는 연합뉴스/포털 메뉴 글귀 강제 삭제\n  title_clean = title_clean\n      .replace(/(핫뉴스|에디터스 픽|Editor's Picks|오래 머문 뉴스|랭킹뉴스|실시간 트렌드|이 시각 추천뉴스|서비스 바로가기).*$/gi, '')\n      .replace(/\\[.*?\\]/g, '')\n      .replace(/[◇▲▶■●◆※]/g, '')\n      .trim();\n\n  // 반으로 쪼개서 중복되는 기괴한 제목 2차 방어\n  let halfLen = Math.floor(title_clean.length / 2);\n  if (title_clean.length > 10 && title_clean.substring(0, halfLen) === title_clean.substring(halfLen, halfLen * 2)) {\n      title_clean = title_clean.substring(0, halfLen);\n  }\n\n  // ==========================================\n  // 2. 본문 텍스트 확보 (일반 HTML vs JTBC 방어)\n  // ==========================================\n  let rawBodyData = rawBody;\n  if (!rawBodyData || rawBodyData.length === 0) {\n      const rawData = item.json.data || '';\n      const match = String(rawData).match(/\"articleInnerTextContent\":\"([\\s\\S]*?)(?:\",\"articleSummary|\",\"articleLike)/);\n      if (match) {\n          rawBodyData = match[1].replace(/\\\\n/g, '\\n').replace(/\\\\\"/g, '\"');\n      }\n  }\n\n  let content_clean = Array.isArray(rawBodyData) ? rawBodyData.join('\\n') : String(rawBodyData);\n\n  // ==========================================\n  // 3. 구조화 및 HTML 찌꺼기 제거\n  // ==========================================\n  content_clean = content_clean.replace(/<(script|style|audio|video|iframe)[^>]*>[\\s\\S]*?<\\/\\1>/gi, '');\n  content_clean = content_clean.replace(/<\\/?(br|p|div|article|section|li|h[1-6])[^>]*>/gi, '\\n');\n  content_clean = content_clean.replace(/<[^>]+>/g, '');\n  content_clean = content_clean.replace(/\\b(loading|decoding|data-[a-z]+|src|style|alt|class|id)=['\"][^'\"]*['\"]/gi, '');\n  content_clean = content_clean.replace(/&nbsp;/gi, ' ').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>');\n\n  // ==========================================\n  // 4. 언론사별 정규식 및 하드코딩 노이즈 필터 통합\n  // ==========================================\n  content_clean = content_clean\n    .replace(/\\[.*?\\]/g, '')\n    .replace(/\\([가-힣\\s]+=[가-힣\\s가-힣a-zA-Z0-9]+\\)/g, '')\n    .replace(/【?광고】?|AD(?=\\s|$)|ADVERTISEMENT/g, '')\n    .replace(/▲[^.]*(\\s{2,}|\\n)/g, '')\n    .replace(/[가-힣]{2,4}\\s*(기자|특파원|편집자|논설위원)\\s*=\\s*/g, '')\n    .replace(/[가-힣]{2,4}\\s*기자\\s*[\\w.]+@[\\w.]+/g, '')\n    .replace(/[\\w.]+@[\\w.]+\\.[a-z]+/g, '')\n    .replace(/[가-힣]+\\s*기자$/g, '')\n    .replace(/ⓒ.*?금지/g, '')\n    .replace(/무단\\s*전재.*?금지/g, '')\n    .replace(/저작권자.*?금지/g, '')\n    .replace(/[◇▲▶■●◆※]/g, '')\n    .replace(/글자크기 설정 파란원을 좌우로 움직이시면 글자크기가 변경 됩니다.*?\\(예시\\)/g, '')\n    .replace(/가장 빠른 뉴스가 있고 다양한 정보, 쌍방향 소통이 숨쉬는 다음뉴스를 만나보세요.*?입체적으로 전달하고 있습니다\\./g, '')\n    .replace(/실시간 트렌드 데이터는 안정화 기간 중 베타\\(Beta\\) 서비스로 운영하며.*?제한적으로 제공합니다\\./g, '')\n    .replace(/JTBC에서 직접 확인하세요\\./g, '')\n    .replace(/해당 언론사로 이동합니다\\./g, '');\n\n  // ==========================================\n  // 5. 문장별 정밀 필터링 및 중복 제거\n  // ==========================================\n  let lines = content_clean.split('\\n');\n  let finalLines = [];\n\n  for (let line of lines) {\n    let trimmed = line.replace(/\\s+/g, ' ').trim();\n    \n    if (trimmed.length <= 15) continue;\n    \n    if (\n        trimmed.includes('기사를 읽어드립니다') || \n        trimmed.includes('기사 읽어주기') || \n        trimmed.includes('audio element') ||\n        trimmed.includes('video 태그를 지원하지') ||\n        trimmed.includes('카카오톡') ||\n        trimmed.includes('자료사진') ||\n        trimmed.includes('송고') ||\n        trimmed.includes('Copyright') ||\n        trimmed.includes('All rights reserved') ||\n        // [핵심 해결 3] 연합뉴스 AI 요약 및 하단 배너 방어\n        trimmed.includes('세 줄 요약') ||\n        trimmed.includes('전체 내용을 이해하기 위해') ||\n        trimmed.includes('맞춤 추천 뉴스를 제공합니다')\n    ) continue;\n\n    let lastChar = trimmed.slice(-1);\n    if (!['.', '”', '\"', '\\'', ')', ']', '?', '>'].includes(lastChar)) {\n        if (trimmed.length < 50) continue; \n    }\n\n    finalLines.push(trimmed);\n  }\n\n  let uniqueLines = [...new Set(finalLines)];\n  let finalContent = uniqueLines.join(' ').slice(0, 21000).trim();\n\n  return { json: { title: title_clean, content: finalContent } };\n});"
+      },
+      "id": "9c9945f6-b59d-4b35-ac69-b5ce697e321d",
+      "name": "1차 전처리",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        112,
+        -704
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5000/predict",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "title",
+              "value": "={{ $json.title }}"
+            },
+            {
+              "name": "content",
+              "value": "={{ $json.content }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8e53a720-e82a-493e-a9dc-a3d78882bb48",
+      "name": "api",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        864,
+        -704
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1248,
+        -704
+      ],
+      "id": "ecaa97e3-6424-49b3-a852-90f3ce284794",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "17cb5b17-6560-4dd8-a188-5b5cd20e7953",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -544,
+        -704
+      ],
+      "id": "cbe50ad5-660d-45e7-bd9f-ff08e6ea9ed7",
+      "name": "Webhook",
+      "webhookId": "17cb5b17-6560-4dd8-a188-5b5cd20e7953"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash-lite",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        304,
+        -496
+      ],
+      "id": "4e18c752-830e-493a-97f6-dd2092024150",
+      "name": "Google Gemini Chat Model2",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "Ez4yoVXl9cSd3JxQ",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=다음 뉴스 기사를 분석하여 결과를 출력해 주세요.\n\n[기사 제목]\n{{ $json.title }}\n\n[기사 본문]\n{{ $json.content }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "당신은 뉴스 데이터 정제 전문가입니다. 입력된 텍스트에서 광고, 메뉴 버튼, 다른 기사 링크, 시스템 안내문 등 모든 웹사이트 노이즈를 완벽하게 제거하고, 새로운 사이트에 깔끔하게 게시할 수 있는 순수한 진짜 기사 제목과 본문만 추출합니다. 절대로 새로운 내용을 지어내거나 변형하지 마세요."
+            },
+            {
+              "type": "HumanMessagePromptTemplate",
+              "message": "반드시 아래의 JSON 형식으로만 출력할 것 (마크다운 기호 없이 순수 JSON만 반환): {   \"title\": \"(정제된 순수 기사 제목)\",   \"content\": \"(노이즈가 완전히 제거된 깔끔한 기사 본문)\" }"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "id": "a30849f3-1246-4fa6-9ad6-f7f0d5321950",
+      "name": "전처리 LLM",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        304,
+        -704
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => {\n  // 1. 제미나이가 뱉어낸 텍스트를 가져옵니다.\n  let rawText = item.json.text || \"\";\n\n  // 2. 앞뒤에 붙은 마크다운 포장지(```json, ```)를 싹 지워버립니다.\n  let cleanText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();\n\n  // 3. 텍스트를 진짜 JSON '데이터'로 변환합니다.\n  let parsedData = JSON.parse(cleanText);\n\n  // 4. 변환된 데이터를 다음 노드로 넘겨줍니다.\n  return { json: parsedData };\n});"
+      },
+      "id": "871a2aa4-4258-4ecc-ab1b-2ceb2985ed90",
+      "name": "Json 파싱",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        656,
+        -704
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => {\n  // n8n이 감싸는 구조 디버깅용으로 전체 출력\n  const raw = item.json;\n  \n  // 가능한 모든 경우 처리\n  let predict;\n  if (Array.isArray(raw)) {\n    predict = raw[0];\n  } else if (Array.isArray(raw.data)) {\n    predict = raw.data[0];\n  } else if (raw.predicted_class !== undefined) {\n    predict = raw;\n  } else {\n    // 어디 숨었는지 찾기\n    const keys = Object.keys(raw);\n    predict = raw[keys[0]];\n    if (Array.isArray(predict)) predict = predict[0];\n  }\n\n  return {\n    json: {\n      title: $('Json 파싱').first().json.title,\n      content: $('Json 파싱').first().json.content,\n      predicted_class: predict?.predicted_class ?? -1,\n      confidence: predict?.confidence ?? 0\n    }\n  };\n});"
+      },
+      "id": "91817193-2ec8-4ed3-b508-66c7aea7a98e",
+      "name": "결과 정리",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1056,
+        -704
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.body.url }}",
+        "options": {}
+      },
+      "id": "e3b13851-64be-4516-b3d9-07e0ad9f6c4a",
+      "name": "HTTP Request (HTML 다운)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -320,
+        -704
+      ]
+    },
+    {
+      "parameters": {
+        "extractionValues": {
+          "values": [
+            {
+              "key": "title",
+              "cssSelector": "title, h1, h2, h3, meta[property=\"og:title\"]"
+            },
+            {
+              "key": "body",
+              "cssSelector": "article, #dic_area, div[itemprop=\"articleBody\"], div.article-text, div.story-news, div.text_area, section.news_view, p",
+              "returnValue": "html",
+              "returnArray": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c0bc05dc-98c1-4c78-a745-635b57f2203d",
+      "name": "범용 HTML 추출",
+      "type": "n8n-nodes-base.htmlExtract",
+      "typeVersion": 1,
+      "position": [
+        -96,
+        -704
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 30
+      },
+      "id": "4c54c4a5-dfdc-4e06-879a-792c225c17c6",
+      "name": "⏱ 재시도 대기",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        -464
+      ],
+      "webhookId": "wait-body-retry"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "1차 전처리": {
+      "main": [
+        [
+          {
+            "node": "전처리 LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "api": {
+      "main": [
+        [
+          {
+            "node": "결과 정리",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (HTML 다운)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "전처리 LLM",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "전처리 LLM": {
+      "main": [
+        [
+          {
+            "node": "Json 파싱",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "⏱ 재시도 대기",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Json 파싱": {
+      "main": [
+        [
+          {
+            "node": "api",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "결과 정리": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (HTML 다운)": {
+      "main": [
+        [
+          {
+            "node": "범용 HTML 추출",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "범용 HTML 추출": {
+      "main": [
+        [
+          {
+            "node": "1차 전처리",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏱ 재시도 대기": {
+      "main": [
+        [
+          {
+            "node": "전처리 LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "d5f09369-ca33-4fb4-b1c2-b8c8f1ae79d2",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "0d4a720c2966e30680a76fbd32067f5ffc77d65aff0129bc7056ad32b34db405"
+  },
+  "id": "ER4JbY4FcMSDmTxu",
+  "tags": []
+}
