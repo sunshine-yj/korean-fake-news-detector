@@ -34,6 +34,8 @@
 | KPFNumericFusion (End-to-End) | 본 연구 데이터 | **0.9650** |
 | 최종 앙상블 (Model A:B = 2:8) | AI Hub + 본 연구 데이터 | 0.9559 |
 
+> Model A(AI Hub 학습, F1 0.9697)는 macro 평균이며 평가 데이터도 다르므로 위 표의 다른 값과 직접 비교할 수 없다. 상세는 [`experiments/README.md`](experiments/README.md) 1절 참조.
+
 > 최종 시스템은 단일 최고 F1(KPFNumericFusion) 대신 **앙상블 구성**을 채택했다. 서로 다른 분포의 데이터로 학습한 두 모델을 결합해 미지의 입력에 대한 견고성을 확보하기 위함이며, 가중치 비율은 실험을 통해 2:8로 결정했다.
 
 ## 3. 주요 기여
@@ -70,10 +72,13 @@ n8n 기반으로 RSS 수집 → 본문 파싱 → 전처리 → DB 적재 → �
 ## 4. 시스템 구성
 
 ```
-[뉴스 수집]                [가짜뉴스 생성]           [탐지 모델]              [서비스]
- n8n RSS/API      →       n8n + GPT-5-mini    →    KPF-BERT 앙상블    →    FastAPI
-      ↓                          ↓                       ↑                     ↓
-  MySQL (ARTICLES) ────────────────────────────────────────            Chrome Extension
+[수집]                    [생성]                      [학습]              [서비스]
+
+ n8n RSS/API  ──→  n8n + GPT-5-mini  ──→  KPF-BERT 앙상블  ←──  Flask /predict
+      │                    │                      ↑                    ↑
+      └──→ MySQL (articles) ←─────────────────────┘              n8n Webhook
+                                                                       ↑
+                                                              Chrome Extension
 ```
 
 ### 4.1 데이터 수집 파이프라인
@@ -93,14 +98,23 @@ n8n 기반으로 RSS 수집 → 본문 파싱 → 전처리 → DB 적재 → �
 
 ```
 입력 기사
-   ├─ Model A (KPF-BERT, AI Hub 학습)        F1 0.9697  ─┐
-   │                                                      ├─ 2:8 가중 앙상블 → 판정
-   └─ Model B (KPF-BERT, 본 연구 데이터 학습)  F1 0.9575  ─┘
+   ├─ Model A (KPF-BERT, AI Hub 학습)         P(가짜) × 0.2 ─┐
+   │                                                          ├─ 합산 → 판정
+   └─ Model B (KPF-BERT, 본 연구 데이터 학습)  P(가짜) × 0.8 ─┘
 ```
+
+두 모델은 **라벨 방향이 반대다.** Model A는 0번 클래스가 가짜, Model B는 1번 클래스가 가짜이므로 확률 추출 인덱스가 다르다. 코드 수정 시 주의가 필요하다.
 
 ### 4.4 서비스 인터페이스
 
-Chrome 확장 프로그램 **'AI 뉴스 정제기'** 를 통해 사용자가 열람 중인 기사를 실시간으로 검증한다. FastAPI 백엔드가 추론을 담당하며, React 기반 프론트엔드에서 결과를 시각화한다.
+Chrome 확장 프로그램 **'AI 뉴스 정제기'** 를 통해 사용자가 열람 중인 기사를 실시간으로 검증한다.
+
+```
+Chrome Extension  →  n8n Webhook  →  Flask /predict  →  판정 결과
+                     (본문 추출 · 정제)   (앙상블 추론)
+```
+
+HTML 파싱과 노이즈 제거는 n8n 워크플로가 담당하고, Flask 서버는 정제된 텍스트를 받아 추론만 수행한다. 상세는 [`serving/README.md`](serving/README.md) 참조.
 
 ## 5. 데이터셋
 
@@ -123,9 +137,9 @@ Chrome 확장 프로그램 **'AI 뉴스 정제기'** 를 통해 사용자가 열
 ├── pipeline/       n8n 워크플로 JSON 및 조작 유형별 프롬프트
 ├── database/       MySQL 스키마 및 분석 쿼리
 ├── data/           데이터셋 명세, 샘플, 통계
-├── src/            전처리 · 피처 · 모델 · 학습 · 평가 · 앙상블
-├── experiments/    실험 설정(YAML) 및 결과 지표
-├── serving/        FastAPI 추론 서버
+├── src/train/      최종 모델 학습 (Model A / Model B)
+├── experiments/    비교 실험 스크립트 및 결과 정리
+├── serving/        Flask 추론 서버 (2:8 가중 앙상블)
 ├── extension/      Chrome 확장 프로그램
 └── frontend/       React 프론트엔드
 ```
@@ -141,7 +155,7 @@ cd korean-fake-news-detector
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-cp .env.example .env    # DB 접속 정보 및 API 키 입력
+cp .env.example .env    # 모델 경로, DB 접속 정보, API 키 입력
 ```
 
 ### 7.2 데이터베이스 초기화
@@ -155,18 +169,28 @@ mysql -u root -p fake_news_db < database/seed_sources.sql
 
 n8n 관리 화면에서 `pipeline/workflows/` 내 JSON을 Import한 뒤, Credential을 직접 등록한다. (보안상 리포지토리에는 포함하지 않음)
 
-### 7.4 학습
+### 7.4 최종 모델 학습
 
 ```bash
-python -m src.train.finetune --config experiments/configs/kpfbert_base.yaml
-python -m src.train.optuna_search --config experiments/configs/optuna.yaml
+python src/train/train_aihub.py      # Model A → ./model_aihub
+python src/train/train_custom.py     # Model B → ./model_custom
 ```
 
-### 7.5 평가 및 추론
+Model A 학습에는 AI Hub 낚시성 기사 데이터셋이 필요하다. 라이선스상 본 저장소에 포함하지 않으므로 [AI Hub](https://aihub.or.kr/)에서 직접 내려받아야 한다.
+
+### 7.5 비교 실험
 
 ```bash
-python -m src.eval.evaluate --checkpoint <path> --by-type
-uvicorn serving.api.main:app --reload
+python experiments/klue_bert_voting.py          # 전이 실패 검증
+python experiments/kpf_bert_numeric_fusion.py   # 단일 최고 F1
+```
+
+전체 실험 목록과 결과는 [`experiments/README.md`](experiments/README.md) 참조.
+
+### 7.6 추론 서버
+
+```bash
+cd serving && python app.py     # http://127.0.0.1:5000
 ```
 
 ## 8. 실험 환경
@@ -175,9 +199,10 @@ uvicorn serving.api.main:app --reload
 |---|---|
 | GPU | NVIDIA RTX 5070 |
 | 프레임워크 | PyTorch, HuggingFace Transformers |
-| 하이퍼파라미터 탐색 | Optuna |
+| 하이퍼파라미터 탐색 | 그리디 순차 탐색 (자체 구현) |
 | 데이터베이스 | MySQL 8.0 |
-| 워크플로 자동화 | n8n (Docker) |
+| 워크플로 자동화 | n8n |
+| 추론 서빙 | Flask |
 | 생성 모델 | GPT-5-mini |
 
 ## 9. 참고문헌
