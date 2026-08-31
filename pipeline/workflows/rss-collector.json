@@ -1,0 +1,1739 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "2b4212fd-a1fc-448a-8f68-7471c215252b",
+      "name": "XML 파싱 — 동아일보1",
+      "type": "n8n-nodes-base.xml",
+      "typeVersion": 1,
+      "position": [
+        -1712,
+        1248
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const meta = $('1개씩 처리1').item.json;\nconst skipTitles = ['전보','인사발령','부고','빈소','발인','조모상','조부상','부친상','모친상','별세','과장급','국장급','팀장급','차관급','장관급','승진','임명','위촉','영전'];\nif (skipTitles.some(k => (meta.title||'').includes(k))) {\n  return [{ json: { ...meta, content: '', _skip: true } }];\n}\nconst content = ($input.first().json.content || '').replace(/\\s+/g,' ').trim();\nif (!content || content.length < 100) {\n  return [{ json: { ...meta, content: '', _skip: true } }];\n}\nreturn [{ json: { ...meta, content, _skip: false } }];"
+      },
+      "id": "3c17689c-c811-437d-89b4-5d2121cae85f",
+      "name": "병합 — 동아일보2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        1248
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://www.yna.co.kr/rss/news.xml",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "bdfdb8e0-0a7d-4abd-8a62-309630aba939",
+      "name": "연합뉴스 RSS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -2480,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://rss.donga.com/total.xml",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "82ad4784-151a-4734-83a3-98496075e9d0",
+      "name": "동아일보 RSS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -2480,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://www.hani.co.kr/rss/",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "557142e8-88f5-4fb3-92d3-de3b94ecd20e",
+      "name": "한겨레 RSS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -2192,
+        1440
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "28c0ed2c-df44-4488-b9a8-c2959b554ac2",
+      "name": "XML 파싱 — 연합뉴스",
+      "type": "n8n-nodes-base.xml",
+      "typeVersion": 1,
+      "position": [
+        -1712,
+        832
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "26ad9f90-fae3-4d59-92fc-26162b72ea98",
+      "name": "XML 파싱 — SBS",
+      "type": "n8n-nodes-base.xml",
+      "typeVersion": 1,
+      "position": [
+        -1712,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "f211935b-ff18-4063-a57d-cee64fb1a306",
+      "name": "XML 파싱 — 한겨레",
+      "type": "n8n-nodes-base.xml",
+      "typeVersion": 1,
+      "position": [
+        -1712,
+        1424
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nlet feed = raw.data ? (Array.isArray(raw.data) ? raw.data[0] : raw.data) : raw;\nconst items = feed?.rss?.channel?.item || [];\nconst parseDate = (str) => {\n  if (!str) return new Date().toISOString().slice(0,19).replace('T',' ');\n  const d = new Date(str);\n  return !isNaN(d.getTime()) ? d.toISOString().slice(0,19).replace('T',' ') : new Date().toISOString().slice(0,19).replace('T',' ');\n};\nconst skipTitles = ['전보','인사발령','부고','빈소','발인','조모상','조부상','부친상','모친상','별세','과장급','국장급','팀장급','차관급','장관급','승진','임명','위촉','영전'];\nreturn items\n  .filter(item => !skipTitles.some(k => (item.title||'').includes(k)))\n  .map(item => ({ json: { title: (item.title||'').trim(), url: item.link||'', published_at: parseDate(item.pubDate), is_fake: 0, source_id: 1, category_id: 3 }}));"
+      },
+      "id": "8cd001c2-c66d-403d-a243-12e9450285e5",
+      "name": "정제 — 연합뉴스",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1536,
+        832
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nlet feed = raw.data ? (Array.isArray(raw.data) ? raw.data[0] : raw.data) : raw;\nconst items = feed?.rss?.channel?.item || [];\nconst parseDate = (str) => {\n  if (!str) return new Date().toISOString().slice(0,19).replace('T',' ');\n  const d = new Date(str);\n  return !isNaN(d.getTime()) ? d.toISOString().slice(0,19).replace('T',' ') : new Date().toISOString().slice(0,19).replace('T',' ');\n};\nconst skipTitles = ['전보','인사발령','부고','빈소','발인','조모상','조부상','부친상','모친상','별세','과장급','국장급','팀장급','차관급','장관급','승진','임명','위촉','영전'];\nreturn items\n  .filter(item => !skipTitles.some(k => (item.title||'').includes(k)))\n  .map(item => ({ json: { title: (item.title||'').trim(), url: item.link||'', published_at: parseDate(item.pubDate), is_fake: 0, source_id: 4, category_id: 3 }}));"
+      },
+      "id": "b2c4f90e-a3d0-4cc7-8bcf-435937f5b670",
+      "name": "정제 — SBS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1536,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nlet feed = raw.data ? (Array.isArray(raw.data) ? raw.data[0] : raw.data) : raw;\nconst items = feed?.rss?.channel?.item || [];\nconst parseDate = (str) => {\n  if (!str) return new Date().toISOString().slice(0,19).replace('T',' ');\n  const d = new Date(str);\n  return !isNaN(d.getTime()) ? d.toISOString().slice(0,19).replace('T',' ') : new Date().toISOString().slice(0,19).replace('T',' ');\n};\nconst skipTitles = ['전보','인사발령','부고','빈소','발인','조모상','조부상','부친상','모친상','별세','과장급','국장급','팀장급','차관급','장관급','승진','임명','위촉','영전'];\nreturn items\n  .filter(item => !skipTitles.some(k => (item.title||'').includes(k)))\n  .map(item => ({ json: { title: (item.title||'').trim(), url: item.link||'', published_at: parseDate(item.pubDate), is_fake: 0, source_id: 7, category_id: 3 }}));"
+      },
+      "id": "3b6dfb45-9daa-4b3b-8514-caca05f94b8f",
+      "name": "정제 — 동아일보",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1536,
+        1248
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nlet feed = raw.data ? (Array.isArray(raw.data) ? raw.data[0] : raw.data) : raw;\nconst items = feed?.rss?.channel?.item || [];\nconst parseDate = (str) => {\n  if (!str) return new Date().toISOString().slice(0,19).replace('T',' ');\n  const d = new Date(str);\n  return !isNaN(d.getTime()) ? d.toISOString().slice(0,19).replace('T',' ') : new Date().toISOString().slice(0,19).replace('T',' ');\n};\nconst skipTitles = ['전보','인사발령','부고','빈소','발인','조모상','조부상','부친상','모친상','별세','과장급','국장급','팀장급','차관급','장관급','승진','임명','위촉','영전'];\nreturn items\n  .filter(item => !skipTitles.some(k => (item.title||'').includes(k)))\n  .map(item => ({ json: { title: (item.title||'').trim(), url: item.link||'', published_at: parseDate(item.pubDate), is_fake: 0, source_id: 6, category_id: 3 }}));"
+      },
+      "id": "e2c87500-11cd-48ed-930d-380a42258074",
+      "name": "정제 — 한겨레",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1552,
+        1424
+      ]
+    },
+    {
+      "parameters": {
+        "numberInputs": 5
+      },
+      "id": "a83b4610-a269-4fae-8e15-48c4e521792e",
+      "name": "RSS 병합",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -1216,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "content",
+              "cssSelector": "div.story-news p",
+              "returnArray": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3c5e29e9-a75f-43b1-823f-a37b83a1fe89",
+      "name": "HTML 추출 — 연합뉴스2",
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "content",
+              "cssSelector": "div.text_area"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5c793b78-7551-43db-985a-c1c119d90dff",
+      "name": "HTML 추출 — SBS2",
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        1056
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "content",
+              "cssSelector": "section.news_view"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ada0c87a-f16c-415b-b9fd-b407b230a8ff",
+      "name": "HTML 추출 — 동아일보2",
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        1248
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "content",
+              "cssSelector": "div.article-text"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "182ed77a-dbf2-43eb-b3af-5f74a5c6f77c",
+      "name": "HTML 추출 — 한겨레2",
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        1440
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const meta = $('1개씩 처리1').item.json;\nconst skipTitles = ['전보','인사발령','부고','빈소','발인','조모상','조부상','부친상','모친상','별세','과장급','국장급','팀장급','차관급','장관급','승진','임명','위촉','영전'];\nif (skipTitles.some(k => (meta.title||'').includes(k))) {\n  return [{ json: { ...meta, content: '', _skip: true } }];\n}\nconst c = $input.first().json.content;\nconst items = Array.isArray(c) ? c : [c || ''];\nconst content = items\n  .map(t => (t||'')\n    .replace(/\\[[^\\]]{0,100}\\]/g, '')\n    .replace(/\\([가-힣]+=[가-힣]+\\)\\s*/g, '')\n    .replace(/[가-힣]+\\s*기자\\s+[\\w.]+@[\\w.]+/g, '')\n    .replace(/[가-힣]+\\s*기자\\s*=\\s*/g, '')\n    .replace(/[가-힣]+\\s*기자$/g, '')\n    .replace(/[\\w.]+@[\\w.]+\\.[a-z]+/g, '')\n    .replace(/\\s+/g, ' ').trim()\n  )\n  .filter(t => {\n    if (t.length < 15) return false;\n    if (t.includes('◇')) return false;\n    if (t.includes('▲')) return false;\n    if (t.includes('저작권자')) return false;\n    if (t.includes('카카오톡')) return false;\n    if (t.includes('무단 전재')) return false;\n    if (t.includes('자료사진')) return false;\n    if (t.includes('송고')) return false;\n    return true;\n  })\n  .join(' ').trim();\nif (!content || content.length < 100) {\n  return [{ json: { ...meta, content: '', _skip: true } }];\n}\nreturn [{ json: { ...meta, content, _skip: false } }];"
+      },
+      "id": "bc68cee4-3de8-4313-8cbf-1684e3d48dfa",
+      "name": "병합 — 연합뉴스2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const meta = $('1개씩 처리1').item.json;\nconst skipTitles = ['전보','인사발령','부고','빈소','발인','조모상','조부상','부친상','모친상','별세','과장급','국장급','팀장급','차관급','장관급','승진','임명','위촉','영전'];\nif (skipTitles.some(k => (meta.title||'').includes(k))) {\n  return [{ json: { ...meta, content: '', _skip: true } }];\n}\nconst content = ($input.first().json.content || '')\n  .replace(/▲[^.]*(\\s{2,}|\\n)/g, '')\n  .replace(/\\s+/g, ' ').trim();\nif (!content || content.length < 100) {\n  return [{ json: { ...meta, content: '', _skip: true } }];\n}\nreturn [{ json: { ...meta, content, _skip: false } }];"
+      },
+      "id": "248489d1-4c92-4d5a-b4af-f5446ef6599e",
+      "name": "병합 — SBS2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        1056
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const meta = $('1개씩 처리1').item.json;\nconst skipTitles = ['전보','인사발령','부고','빈소','발인','조모상','조부상','부친상','모친상','별세','과장급','국장급','팀장급','차관급','장관급','승진','임명','위촉','영전'];\nif (skipTitles.some(k => (meta.title||'').includes(k))) {\n  return [{ json: { ...meta, content: '', _skip: true } }];\n}\nconst content = ($input.first().json.content || '')\n  .replace(/[가-힣]+\\s*기자\\s+[\\w.]+@[\\w.]+/g, '')\n  .replace(/[가-힣]+\\s*기자$/g, '')\n  .replace(/[\\w.]+@[\\w.]+\\.[a-z]+/g, '')\n  .replace(/\\s+/g, ' ').trim();\nif (!content || content.length < 100) {\n  return [{ json: { ...meta, content: '', _skip: true } }];\n}\nreturn [{ json: { ...meta, content, _skip: false } }];"
+      },
+      "id": "dabc8d97-0ff2-45ce-ae07-492adce085cb",
+      "name": "병합 — 한겨레2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        1440
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nif (item._skip === true) {\n  return [{ json: { ...item, _skip: true } }];\n}\nconst content = item.content || '';\nif (content.length < 100) {\n  return [{ json: { ...item, _skip: true } }];\n}\n// TEXT 최대 65535 bytes, 한글 3bytes이므로 21845자 제한\nif (content.length > 21000) {\n  return [{ json: { ...item, content: content.slice(0, 21000), _skip: false } }];\n}\nreturn [{ json: { ...item, _skip: false } }];"
+      },
+      "id": "c12609e1-b288-40ff-bef0-a1b1392c2238",
+      "name": "가드레일2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        512,
+        1248
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "pass-condition",
+              "leftValue": "={{ $json._skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "897813ea-b64b-4e3f-b81e-2b11e7dd1e6d",
+      "name": "가드레일 통과?2",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        752,
+        1248
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) AS cnt FROM articles WHERE url = '{{ $json.url }}'",
+        "options": {}
+      },
+      "id": "10f91baa-6b8c-495e-9bf3-2f27f5094bcd",
+      "name": "중복 URL 체크2",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        1104
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "OpysWOKeooCF6vzL",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "condition-1",
+              "leftValue": "={{ $json.cnt }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d0b1c83b-adc3-447a-a40a-e833b68ad205",
+      "name": "신규 기사인가?2",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1216,
+        1104
+      ]
+    },
+    {
+      "parameters": {
+        "table": {
+          "__rl": true,
+          "value": "articles",
+          "mode": "list"
+        },
+        "dataMode": "defineBelow",
+        "valuesToSend": {
+          "values": [
+            {
+              "column": "title",
+              "value": "={{ $('가드레일2').item.json.title }}"
+            },
+            {
+              "column": "content",
+              "value": "={{ $('가드레일2').item.json.content }}"
+            },
+            {
+              "column": "url",
+              "value": "={{ $('가드레일2').item.json.url }}"
+            },
+            {
+              "column": "published_at",
+              "value": "={{ $('가드레일2').item.json.published_at }}"
+            },
+            {
+              "column": "is_fake",
+              "value": "={{ $('가드레일2').item.json.is_fake }}"
+            },
+            {
+              "column": "source_id",
+              "value": "={{ $('가드레일2').item.json.source_id }}"
+            },
+            {
+              "column": "category_id",
+              "value": "={{ $('가드레일2').item.json.category_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "01f0a28b-a938-4256-8e29-ac6d731a2bf4",
+      "name": "기사 저장2",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.2,
+      "position": [
+        1552,
+        992
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "OpysWOKeooCF6vzL",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "963e10c8-f504-4aae-8ff6-a23f201bbecf",
+      "name": "중복 스킵2",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1552,
+        1280
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "f2cec4fc-b06c-4dc7-84f2-18af6fe5dbcc",
+      "name": "필터 스킵2",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        960,
+        1392
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "await new Promise(resolve => setTimeout(resolve, 6000));\nreturn $input.all();"
+      },
+      "id": "50f83cfe-57c6-4d72-a8ef-a22e0a666fad",
+      "name": "크롤링 딜레이1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -736,
+        1248
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "a1f68aac-9a95-4dcb-b941-88339eae5b00",
+      "name": "원문 페이지 크롤링1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -496,
+        1248
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "6c83a9b8-deda-42e6-af03-3ecc3d5d517c",
+      "name": "1개씩 처리1",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -992,
+        1248
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://news-ex.jtbc.co.kr/v1/get/rss/newsflesh",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "1239b640-e443-48eb-bdd6-348fea362ed8",
+      "name": "JTBC RSS1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -2496,
+        1568
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "9de7fb9b-a9c7-47c1-bcae-52053fc62cd1",
+      "name": "XML 파싱 — JTBC1",
+      "type": "n8n-nodes-base.xml",
+      "typeVersion": 1,
+      "position": [
+        -1712,
+        1632
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const meta = $('1개씩 처리1').item.json;\n\nconst skipTitles = ['전보','인사발령','부고','빈소','발인','조모상','조부상','부친상','모친상','별세','과장급','국장급','팀장급','차관급','장관급','승진','임명','위촉','영전'];\nif (skipTitles.some(k => (meta.title||'').includes(k))) {\n  return [{ json: { ...meta, content: '', _skip: true } }];\n}\n\nconst html = $input.first().json.data || '';\n\n// articleInnerTextContent 필드 추출\nconst match = html.match(/\"articleInnerTextContent\":\"([\\s\\S]*?)(?:\",\"articleSummary|\",\"articleLike)/);\nif (!match) {\n  return [{ json: { ...meta, content: '', _skip: true } }];\n}\n\nconst content = match[1]\n  .replace(/\\\\n/g, ' ')\n  .replace(/\\\\\"/g, '\"')\n  .replace(/\\[[^\\]]{0,100}\\]/g, '')\n  .replace(/[가-힣]+\\s*기자\\s+[\\w.]+@[\\w.]+/g, '')\n  .replace(/\\([가-힣\\s]+\\s*:\\s*[가-힣]+\\)/g, '')\n  .replace(/[가-힣]+\\s*기자$/g, '')\n  .replace(/[\\w.]+@[\\w.]+\\.[a-z]+/g, '')\n  .replace(/ⓒ.*?금지/g, '')\n  .replace(/\\s+/g, ' ')\n  .trim();\n\nif (!content || content.length < 100) {\n  return [{ json: { ...meta, content: '', _skip: true } }];\n}\n\nreturn [{ json: { ...meta, content, _skip: false } }];"
+      },
+      "id": "1b91a3a0-fe6b-400a-80db-c9d36f0ac0e0",
+      "name": "추출 및 병합 — JTBC1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        1616
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('1개씩 처리1').item.json.url }}",
+                    "rightValue": "yna.co.kr",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    },
+                    "id": "648ad4d0-21db-4bb5-a678-1bc9e25264eb"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "179c3939-2997-4c68-baaf-2234e0b0fb52",
+                    "leftValue": "={{ $('1개씩 처리1').item.json.url }}",
+                    "rightValue": "sbs.co.kr",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "6d37a5de-0aba-4483-b67c-763012ecee26",
+                    "leftValue": "={{ $('1개씩 처리1').item.json.url }}",
+                    "rightValue": "donga.com",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "f5879632-abba-4d93-8111-0ff74ff79eba",
+                    "leftValue": "={{ $('1개씩 처리1').item.json.url }}",
+                    "rightValue": "hani.co.kr",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "87638b4f-da29-43ee-9f0e-9e3d4c45fe7d",
+                    "leftValue": "={{ $('1개씩 처리1').item.json.url }}",
+                    "rightValue": "jtbc.co.kr",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -272,
+        1200
+      ],
+      "id": "6419f07d-ccef-41b8-bbe1-33969bc8bb26",
+      "name": "언론사 분류"
+    },
+    {
+      "parameters": {
+        "url": "https://news-ex.jtbc.co.kr/v1/get/rss/section/economy",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "39d0212f-b8bd-402f-a0ed-bf88eae69c86",
+      "name": "JTBC RSS 경제",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -2352,
+        1616
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://news-ex.jtbc.co.kr/v1/get/rss/section/politics",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "33674893-8d5b-4a82-ba4f-a781f86bbcbf",
+      "name": "JTBC RSS 정치",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -2192,
+        1664
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://news.sbs.co.kr/news/SectionRssFeed.do?sectionId=01",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "0808ab4c-0ec8-43d1-aaa0-82408b91f1eb",
+      "name": "SBS RSS 정치",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -2480,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://news.sbs.co.kr/news/SectionRssFeed.do?sectionId=02",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "0326c2cc-92c8-40a7-99c1-a90e9170fb80",
+      "name": "SBS RSS 경제",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -2208,
+        1088
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://news.sbs.co.kr/news/SectionRssFeed.do?sectionId=03",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "1f8c069b-195f-4f97-a472-e4c11fe13ce4",
+      "name": "SBS RSS 사회",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -2336,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://www.yna.co.kr/rss/politics.xml",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "43832255-bd24-43d7-837f-fe881c92ba19",
+      "name": "연합뉴스 RSS 정치",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -2336,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://www.yna.co.kr/rss/economy.xml",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "db489749-fcf6-4857-ba1d-b91b0c34c86c",
+      "name": "연합뉴스 RSS 경제",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -2208,
+        896
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://rss.donga.com/politics.xml",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "adece819-f8a2-409a-9cdb-2da6393aac23",
+      "name": "동아일보 RSS1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -2336,
+        1248
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://rss.donga.com/economy.xml",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "f6bf8549-4155-4775-8f16-f4183cc9949f",
+      "name": "동아일보 RSS2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -2192,
+        1296
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "d5bf8f6b-23ca-47d5-b669-57f746080a74",
+      "name": "매일 06시 실행",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -2864,
+        1248
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 3개 RSS XML에서 <item> 블록만 추출해서 하나로 합치기\nconst allItemsXml = $input.all()\n  .map(input => input.json.data || '')\n  .map(xml => {\n    const matches = xml.match(/<item>[\\s\\S]*?<\\/item>/g) || [];\n    return matches.join('\\n');\n  })\n  .join('\\n');\n\n// 단일 RSS XML로 재조합\nconst combined = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<rss version=\"2.0\">\n  <channel>\n    <title>합쳐진 RSS</title>\n    ${allItemsXml}\n  </channel>\n</rss>`;\n\nreturn [{ json: { data: combined } }];"
+      },
+      "id": "7766efcf-3a31-4c81-a515-c4be350da41f",
+      "name": "RSS 합치기",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1872,
+        832
+      ]
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "id": "e28ee3ce-b898-4581-b52a-197b6f6ada07",
+      "name": "RSS 병합1",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -2032,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 3개 RSS XML에서 <item> 블록만 추출해서 하나로 합치기\nconst allItemsXml = $input.all()\n  .map(input => input.json.data || '')\n  .map(xml => {\n    const matches = xml.match(/<item>[\\s\\S]*?<\\/item>/g) || [];\n    return matches.join('\\n');\n  })\n  .join('\\n');\n\n// 단일 RSS XML로 재조합\nconst combined = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<rss version=\"2.0\">\n  <channel>\n    <title>합쳐진 RSS</title>\n    ${allItemsXml}\n  </channel>\n</rss>`;\n\nreturn [{ json: { data: combined } }];"
+      },
+      "id": "c60dc6cd-6f1e-4077-a604-6500f34a4a93",
+      "name": "RSS 합치기1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1872,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "id": "a842b462-915c-4acc-bda8-4e554d569200",
+      "name": "RSS 병합2",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -2032,
+        1024
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 3개 RSS XML에서 <item> 블록만 추출해서 하나로 합치기\nconst allItemsXml = $input.all()\n  .map(input => input.json.data || '')\n  .map(xml => {\n    const matches = xml.match(/<item>[\\s\\S]*?<\\/item>/g) || [];\n    return matches.join('\\n');\n  })\n  .join('\\n');\n\n// 단일 RSS XML로 재조합\nconst combined = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<rss version=\"2.0\">\n  <channel>\n    <title>합쳐진 RSS</title>\n    ${allItemsXml}\n  </channel>\n</rss>`;\n\nreturn [{ json: { data: combined } }];"
+      },
+      "id": "fad74acf-ee17-4536-84df-c4537153b6fd",
+      "name": "RSS 합치기2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1872,
+        1248
+      ]
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "id": "ad11bc33-2974-4aa7-8a87-3504796bbb3c",
+      "name": "RSS 병합3",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -2032,
+        1232
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 3개 RSS XML에서 <item> 블록만 추출해서 하나로 합치기\nconst allItemsXml = $input.all()\n  .map(input => input.json.data || '')\n  .map(xml => {\n    const matches = xml.match(/<item>[\\s\\S]*?<\\/item>/g) || [];\n    return matches.join('\\n');\n  })\n  .join('\\n');\n\n// 단일 RSS XML로 재조합\nconst combined = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<rss version=\"2.0\">\n  <channel>\n    <title>합쳐진 RSS</title>\n    ${allItemsXml}\n  </channel>\n</rss>`;\n\nreturn [{ json: { data: combined } }];"
+      },
+      "id": "a7bb8fd4-7eee-4455-8a0c-b33ff36628ff",
+      "name": "RSS 합치기3",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1888,
+        1632
+      ]
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "id": "0c0c5c9c-0fdf-48fc-b8b8-386a0c019d6d",
+      "name": "RSS 병합4",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -2048,
+        1616
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nlet feed = raw.data ? (Array.isArray(raw.data) ? raw.data[0] : raw.data) : raw;\nconst rawItems = feed?.rss?.channel?.item || [];\nconst items = Array.isArray(rawItems) ? rawItems : [rawItems];\n\nconst parseDate = (str) => {\n  if (!str) return new Date().toISOString().slice(0,19).replace('T',' ');\n  const d = new Date(str);\n  return !isNaN(d.getTime()) ? d.toISOString().slice(0,19).replace('T',' ') : new Date().toISOString().slice(0,19).replace('T',' ');\n};\n\nconst skipTitles = ['전보','인사발령','부고','빈소','발인','조모상','조부상','부친상','모친상','별세','과장급','국장급','팀장급','차관급','장관급','승진','임명','위촉','영전'];\n\nreturn items\n  .filter(item => !skipTitles.some(k => (item.title||'').includes(k)))\n  .map(item => {\n    const title = Array.isArray(item.title) ? item.title[0] : (item.title || '');\n    const url   = Array.isArray(item.link)  ? item.link[0]  : (item.link  || '');\n    return { json: {\n      title:        title.trim(),\n      url,\n      published_at: parseDate(item.pubDate),\n      is_fake:      0,\n      source_id:    11,\n      category_id:  3\n    }};\n  });"
+      },
+      "id": "c629bf69-c1ce-4bb4-92f6-39b15f91456b",
+      "name": "정제 — JTBC",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1552,
+        1632
+      ]
+    }
+  ],
+  "connections": {
+    "XML 파싱 — 동아일보1": {
+      "main": [
+        [
+          {
+            "node": "정제 — 동아일보",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "병합 — 동아일보2": {
+      "main": [
+        [
+          {
+            "node": "가드레일2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "연합뉴스 RSS": {
+      "main": [
+        [
+          {
+            "node": "RSS 병합1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "동아일보 RSS": {
+      "main": [
+        [
+          {
+            "node": "RSS 병합3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "한겨레 RSS": {
+      "main": [
+        [
+          {
+            "node": "XML 파싱 — 한겨레",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "XML 파싱 — 연합뉴스": {
+      "main": [
+        [
+          {
+            "node": "정제 — 연합뉴스",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "XML 파싱 — SBS": {
+      "main": [
+        [
+          {
+            "node": "정제 — SBS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "XML 파싱 — 한겨레": {
+      "main": [
+        [
+          {
+            "node": "정제 — 한겨레",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "정제 — 연합뉴스": {
+      "main": [
+        [
+          {
+            "node": "RSS 병합",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "정제 — SBS": {
+      "main": [
+        [
+          {
+            "node": "RSS 병합",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "정제 — 동아일보": {
+      "main": [
+        [
+          {
+            "node": "RSS 병합",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "정제 — 한겨레": {
+      "main": [
+        [
+          {
+            "node": "RSS 병합",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "RSS 병합": {
+      "main": [
+        [
+          {
+            "node": "1개씩 처리1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML 추출 — 연합뉴스2": {
+      "main": [
+        [
+          {
+            "node": "병합 — 연합뉴스2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML 추출 — SBS2": {
+      "main": [
+        [
+          {
+            "node": "병합 — SBS2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML 추출 — 동아일보2": {
+      "main": [
+        [
+          {
+            "node": "병합 — 동아일보2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML 추출 — 한겨레2": {
+      "main": [
+        [
+          {
+            "node": "병합 — 한겨레2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "병합 — 연합뉴스2": {
+      "main": [
+        [
+          {
+            "node": "가드레일2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "병합 — SBS2": {
+      "main": [
+        [
+          {
+            "node": "가드레일2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "병합 — 한겨레2": {
+      "main": [
+        [
+          {
+            "node": "가드레일2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "가드레일2": {
+      "main": [
+        [
+          {
+            "node": "가드레일 통과?2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "가드레일 통과?2": {
+      "main": [
+        [
+          {
+            "node": "중복 URL 체크2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "필터 스킵2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "중복 URL 체크2": {
+      "main": [
+        [
+          {
+            "node": "신규 기사인가?2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "신규 기사인가?2": {
+      "main": [
+        [
+          {
+            "node": "기사 저장2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "중복 스킵2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "기사 저장2": {
+      "main": [
+        [
+          {
+            "node": "1개씩 처리1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "중복 스킵2": {
+      "main": [
+        [
+          {
+            "node": "1개씩 처리1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "필터 스킵2": {
+      "main": [
+        [
+          {
+            "node": "1개씩 처리1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "크롤링 딜레이1": {
+      "main": [
+        [
+          {
+            "node": "원문 페이지 크롤링1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "원문 페이지 크롤링1": {
+      "main": [
+        [
+          {
+            "node": "언론사 분류",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "1개씩 처리1": {
+      "main": [
+        [],
+        [
+          {
+            "node": "크롤링 딜레이1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JTBC RSS1": {
+      "main": [
+        [
+          {
+            "node": "RSS 병합4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "XML 파싱 — JTBC1": {
+      "main": [
+        [
+          {
+            "node": "정제 — JTBC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "추출 및 병합 — JTBC1": {
+      "main": [
+        [
+          {
+            "node": "가드레일2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "언론사 분류": {
+      "main": [
+        [
+          {
+            "node": "HTML 추출 — 연합뉴스2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTML 추출 — SBS2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTML 추출 — 동아일보2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTML 추출 — 한겨레2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "추출 및 병합 — JTBC1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JTBC RSS 경제": {
+      "main": [
+        [
+          {
+            "node": "RSS 병합4",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "JTBC RSS 정치": {
+      "main": [
+        [
+          {
+            "node": "RSS 병합4",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "SBS RSS 정치": {
+      "main": [
+        [
+          {
+            "node": "RSS 병합2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SBS RSS 경제": {
+      "main": [
+        [
+          {
+            "node": "RSS 병합2",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "SBS RSS 사회": {
+      "main": [
+        [
+          {
+            "node": "RSS 병합2",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "연합뉴스 RSS 정치": {
+      "main": [
+        [
+          {
+            "node": "RSS 병합1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "연합뉴스 RSS 경제": {
+      "main": [
+        [
+          {
+            "node": "RSS 병합1",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "동아일보 RSS1": {
+      "main": [
+        [
+          {
+            "node": "RSS 병합3",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "동아일보 RSS2": {
+      "main": [
+        [
+          {
+            "node": "RSS 병합3",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "매일 06시 실행": {
+      "main": [
+        [
+          {
+            "node": "연합뉴스 RSS 경제",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "연합뉴스 RSS 정치",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "연합뉴스 RSS",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "JTBC RSS 정치",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "JTBC RSS 경제",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "JTBC RSS1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SBS RSS 경제",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SBS RSS 사회",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SBS RSS 정치",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "동아일보 RSS",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "동아일보 RSS1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "동아일보 RSS2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "한겨레 RSS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS 합치기": {
+      "main": [
+        [
+          {
+            "node": "XML 파싱 — 연합뉴스",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS 병합1": {
+      "main": [
+        [
+          {
+            "node": "RSS 합치기",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS 합치기1": {
+      "main": [
+        [
+          {
+            "node": "XML 파싱 — SBS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS 병합2": {
+      "main": [
+        [
+          {
+            "node": "RSS 합치기1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS 합치기2": {
+      "main": [
+        [
+          {
+            "node": "XML 파싱 — 동아일보1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS 병합3": {
+      "main": [
+        [
+          {
+            "node": "RSS 합치기2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS 합치기3": {
+      "main": [
+        [
+          {
+            "node": "XML 파싱 — JTBC1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS 병합4": {
+      "main": [
+        [
+          {
+            "node": "RSS 합치기3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "정제 — JTBC": {
+      "main": [
+        [
+          {
+            "node": "RSS 병합",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "0d4a720c2966e30680a76fbd32067f5ffc77d65aff0129bc7056ad32b34db405"
+  }
+}
